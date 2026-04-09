@@ -1,0 +1,7 @@
+anthropic
+python-docx
+weasyprint
+click
+rich
+pyyaml
+pbixray
