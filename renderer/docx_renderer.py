@@ -60,6 +60,18 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> Document:
     _tbl_row(tbl, 4, "Quality findings", str(len(findings)))
     doc.add_paragraph()
 
+    # Model Diagram
+    from renderer.diagram_renderer import build_mermaid
+    doc.add_heading("Model Diagram", level=1)
+    p = doc.add_paragraph()
+    p.add_run(
+        "The diagram below is in Mermaid erDiagram format. "
+        "It renders automatically in GitHub, VS Code preview, Notion, GitLab, "
+        "and most modern Markdown viewers."
+    ).italic = True
+    _add_code_block(doc, build_mermaid(model))
+    doc.add_paragraph()
+
     # Tables
     doc.add_heading("Tables", level=1)
     for table in model.tables:
@@ -79,9 +91,8 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> Document:
             else:
                 doc.add_paragraph("No table filters defined.")
 
-    # Quality findings
-    if findings:
-        _render_findings(doc, findings)
+    # Quality findings (always show section)
+    _render_findings(doc, findings)
 
     return doc
 
@@ -157,7 +168,8 @@ def _render_table(doc: Document, table: Table) -> None:
 
 def _render_measure(doc: Document, measure: Measure) -> None:
     hidden_tag = " (hidden)" if measure.is_hidden else ""
-    p = doc.add_heading(f"{measure.name}{hidden_tag}", level=4)
+    folder_tag = f"  [{measure.display_folder}]" if measure.display_folder else ""
+    p = doc.add_heading(f"{measure.name}{hidden_tag}{folder_tag}", level=4)
 
     if measure.description:
         doc.add_paragraph(measure.description)
@@ -192,7 +204,7 @@ def _render_relationships(doc: Document, relationships: list[Relationship]) -> N
     for r, rel in enumerate(relationships, start=1):
         tbl.cell(r, 0).text = f"{rel.from_table}[{rel.from_column}]"
         tbl.cell(r, 1).text = f"{rel.to_table}[{rel.to_column}]"
-        tbl.cell(r, 2).text = rel.cardinality.replace("_", " ")
+        tbl.cell(r, 2).text = rel.cardinality.replace("_to_", " \u2192 ").replace("_", " ")
         tbl.cell(r, 3).text = rel.cross_filter_direction
         tbl.cell(r, 4).text = "Yes" if rel.is_active else "No"
     doc.add_paragraph()
@@ -200,15 +212,22 @@ def _render_relationships(doc: Document, relationships: list[Relationship]) -> N
 
 def _render_findings(doc: Document, findings: list[QualityFinding]) -> None:
     doc.add_heading("Quality Findings", level=1)
+    if not findings:
+        doc.add_paragraph("No quality issues found.")
+        return
     warnings = [f for f in findings if f.severity == "warning"]
     infos = [f for f in findings if f.severity == "info"]
-    for section_findings, label in [(warnings, "Warnings"), (infos, "Info")]:
+    for section_findings, label, icon in [
+        (warnings, "Warnings", "\u26a0\ufe0f"),
+        (infos, "Info", "\u2139\ufe0f"),
+    ]:
         if not section_findings:
             continue
         doc.add_heading(f"{label} ({len(section_findings)})", level=2)
         for f in section_findings:
             p = doc.add_paragraph(style="List Bullet")
-            p.add_run(f"{f.object_name}").bold = True
+            p.add_run(f"{icon} ").bold = False
+            p.add_run(f.object_name).bold = True
             p.add_run(f" ({f.category}): {f.detail}")
 
 

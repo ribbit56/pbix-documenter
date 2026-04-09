@@ -41,6 +41,7 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> str:
         f"| Relationships | {len(model.relationships)} |",
         f"| Total measures | {len(all_measures)} |",
         f"| Roles (RLS) | {len(model.roles)} |",
+        f"| Quality findings | {len(findings)} |",
         "",
     ]
 
@@ -68,9 +69,8 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> str:
     if model.roles:
         lines += _render_roles(model)
 
-    # Quality findings
-    if findings:
-        lines += _render_findings(findings)
+    # Quality findings (always show section)
+    lines += _render_findings(findings)
 
     return "\n".join(lines)
 
@@ -216,6 +216,10 @@ def _render_roles(model: SemanticModel) -> list[str]:
 
 def _render_findings(findings: list[QualityFinding]) -> list[str]:
     lines = ["## Quality Findings", ""]
+    if not findings:
+        lines += ["*No quality issues found.*", ""]
+        return lines
+
     warnings = [f for f in findings if f.severity == "warning"]
     infos = [f for f in findings if f.severity == "info"]
 

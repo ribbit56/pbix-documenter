@@ -248,7 +248,7 @@ def _render_relationships(relationships: list[Relationship]) -> str:
         f"<tr>"
         f"<td><code>{h(r.from_table)}[{h(r.from_column)}]</code></td>"
         f"<td><code>{h(r.to_table)}[{h(r.to_column)}]</code></td>"
-        f"<td>{h(r.cardinality.replace('_', ' '))}</td>"
+        f"<td>{h(r.cardinality.replace('_to_', ' \u2192 ').replace('_', ' '))}</td>"
         f"<td>{h(r.cross_filter_direction)}</td>"
         f"<td>{'Yes' if r.is_active else 'No'}</td>"
         f"</tr>"
