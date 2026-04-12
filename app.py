@@ -361,7 +361,7 @@ def _render_results() -> None:
   // Lighten relationship lines and markers for dark backgrounds
   const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
   style.textContent = `
-    .er.relationshipLine {{ stroke: #a0b4cc !important; stroke-width: 1.5px !important; }}
+    .er.relationshipLine {{ stroke: #a0b4cc !important; stroke-width: 3px !important; }}
     marker path, marker line {{ stroke: #a0b4cc !important; fill: #a0b4cc !important; }}
     .er.relationshipLabelBox {{ fill: #2a2a3a !important; stroke: #a0b4cc !important; }}
     .er.relationshipLabel {{ fill: #c8d8e8 !important; }}
