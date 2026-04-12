@@ -109,6 +109,9 @@ def _walk_for_measures(
 
 def _try_register(name: str, measure_map: dict, visual_label: str) -> None:
     key = name.lower().strip()
+    # queryRef values are often "TableName.MeasureName" — try both forms
+    if key not in measure_map and "." in key:
+        key = key.rsplit(".", 1)[1]
     if key in measure_map:
         measure = measure_map[key]
         if visual_label not in measure.used_in_visuals:
