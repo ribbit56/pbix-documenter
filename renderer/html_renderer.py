@@ -7,6 +7,13 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
+_CARD = {
+    "many_to_one":  "many:1",
+    "one_to_many":  "1:many",
+    "one_to_one":   "1:1",
+    "many_to_many": "many:many",
+}
+
 from analyzer.quality_checks import QualityFinding
 from models.schema import Measure, Relationship, SemanticModel, Table
 
@@ -160,14 +167,13 @@ def _render_table(table: Table) -> str:
     cols_html = ""
     if visible_cols:
         rows = "".join(
-            f"<tr><td><code>{h(c.name)}</code></td><td>{h(c.data_type)}</td>"
-            f"<td>{'Yes' if c.is_calculated else ''}</td><td>{h(c.description)}</td></tr>"
+            f"<tr><td><code>{h(c.name)}</code></td><td>{h(c.data_type)}</td></tr>"
             for c in visible_cols
         )
         cols_html = f"""
       <h4>Columns</h4>
       <table class="data-table">
-        <thead><tr><th>Column</th><th>Type</th><th>Calculated</th><th>Description</th></tr></thead>
+        <thead><tr><th>Column</th><th>Type</th></tr></thead>
         <tbody>{rows}</tbody>
       </table>"""
 
@@ -248,7 +254,7 @@ def _render_relationships(relationships: list[Relationship]) -> str:
         f"<tr>"
         f"<td><code>{h(r.from_table)}[{h(r.from_column)}]</code></td>"
         f"<td><code>{h(r.to_table)}[{h(r.to_column)}]</code></td>"
-        f"<td>{h(r.cardinality.replace('_to_', ' \u2192 ').replace('_', ' '))}</td>"
+        f"<td>{h(_CARD.get(r.cardinality, r.cardinality))}</td>"
         f"<td>{h(r.cross_filter_direction)}</td>"
         f"<td>{'Yes' if r.is_active else 'No'}</td>"
         f"</tr>"

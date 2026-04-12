@@ -5,6 +5,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+_CARD = {
+    "many_to_one":  "many:1",
+    "one_to_many":  "1:many",
+    "one_to_one":   "1:1",
+    "many_to_many": "many:many",
+}
+
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -125,17 +132,15 @@ def _render_table(doc: Document, table: Table) -> None:
     visible_cols = [c for c in table.columns if not c.is_hidden]
     if visible_cols:
         doc.add_heading("Columns", level=3)
-        col_tbl = doc.add_table(rows=1 + len(visible_cols), cols=4)
+        col_tbl = doc.add_table(rows=1 + len(visible_cols), cols=2)
         col_tbl.style = "Table Grid"
-        headers = ["Column", "Type", "Calculated", "Description"]
+        headers = ["Column", "Type"]
         for i, h in enumerate(headers):
             col_tbl.cell(0, i).text = h
             col_tbl.cell(0, i).paragraphs[0].runs[0].bold = True
         for r, col in enumerate(visible_cols, start=1):
             col_tbl.cell(r, 0).text = col.name
             col_tbl.cell(r, 1).text = col.data_type
-            col_tbl.cell(r, 2).text = "Yes" if col.is_calculated else ""
-            col_tbl.cell(r, 3).text = col.description or ""
         doc.add_paragraph()
 
     # Measures
@@ -204,7 +209,7 @@ def _render_relationships(doc: Document, relationships: list[Relationship]) -> N
     for r, rel in enumerate(relationships, start=1):
         tbl.cell(r, 0).text = f"{rel.from_table}[{rel.from_column}]"
         tbl.cell(r, 1).text = f"{rel.to_table}[{rel.to_column}]"
-        tbl.cell(r, 2).text = rel.cardinality.replace("_to_", " \u2192 ").replace("_", " ")
+        tbl.cell(r, 2).text = _CARD.get(rel.cardinality, rel.cardinality)
         tbl.cell(r, 3).text = rel.cross_filter_direction
         tbl.cell(r, 4).text = "Yes" if rel.is_active else "No"
     doc.add_paragraph()

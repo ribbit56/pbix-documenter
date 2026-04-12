@@ -161,7 +161,7 @@ def build_mermaid(model: SemanticModel) -> str:
             lines.append(f"    {tid} {{")
             for col in show_cols:
                 dtype = _TYPE_MAP.get(col.data_type.lower(), col.data_type.replace(" ", "_")[:12])
-                lines.append(f"        {dtype} {_mermaid_field(col.name)}")
+                lines.append(f"        {_mermaid_field(col.name)} {dtype}")
             lines.append("    }")
         else:
             # Entity with no visible columns (e.g. pure measure table) — omit body

@@ -5,6 +5,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+_CARD = {
+    "many_to_one":  "many:1",
+    "one_to_many":  "1:many",
+    "one_to_one":   "1:1",
+    "many_to_many": "many:many",
+}
+
 from analyzer.quality_checks import QualityFinding
 from models.schema import SemanticModel, Table, Measure, Column, Relationship
 from renderer.diagram_renderer import build_mermaid
@@ -99,12 +106,10 @@ def _render_table(table: Table) -> list[str]:
     if visible_cols:
         lines.append("#### Columns")
         lines.append("")
-        lines.append("| Column | Type | Calculated | Description |")
-        lines.append("|--------|------|------------|-------------|")
+        lines.append("| Column | Type |")
+        lines.append("|--------|------|")
         for col in visible_cols:
-            calc = "Yes" if col.is_calculated else ""
-            desc = col.description or ""
-            lines.append(f"| `{col.name}` | {col.data_type} | {calc} | {desc} |")
+            lines.append(f"| `{col.name}` | {col.data_type} |")
         lines.append("")
 
     # Measures
@@ -190,7 +195,7 @@ def _render_relationships(relationships: list[Relationship]) -> list[str]:
     ]
     for rel in relationships:
         active = "Yes" if rel.is_active else "No"
-        cardinality = rel.cardinality.replace("_to_", " → ").replace("_", " ")
+        cardinality = _CARD.get(rel.cardinality, rel.cardinality)
         lines.append(
             f"| `{rel.from_table}`[{rel.from_column}] "
             f"| `{rel.to_table}`[{rel.to_column}] "
