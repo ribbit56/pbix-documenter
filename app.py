@@ -358,12 +358,13 @@ def _render_results() -> None:
   svgEl.style.width  = "100%";
   svgEl.style.height = "100%";
 
-  // Lighten relationship lines so they show up against dark backgrounds
+  // Lighten relationship lines and markers for dark backgrounds
   const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
   style.textContent = `
-    .er.relationshipLine {{ stroke: rgba(255,255,255,0.55) !important; }}
-    .er.relationshipLabelBox {{ fill: rgba(40,40,40,0.7) !important; }}
-    .er.relationshipLabel {{ fill: #ddd !important; }}
+    .er.relationshipLine {{ stroke: #a0b4cc !important; stroke-width: 1.5px !important; }}
+    marker path, marker line {{ stroke: #a0b4cc !important; fill: #a0b4cc !important; }}
+    .er.relationshipLabelBox {{ fill: #2a2a3a !important; stroke: #a0b4cc !important; }}
+    .er.relationshipLabel {{ fill: #c8d8e8 !important; }}
   `;
   svgEl.prepend(style);
 
