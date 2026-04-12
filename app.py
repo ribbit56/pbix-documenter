@@ -358,6 +358,15 @@ def _render_results() -> None:
   svgEl.style.width  = "100%";
   svgEl.style.height = "100%";
 
+  // Lighten relationship lines so they show up against dark backgrounds
+  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = `
+    .er.relationshipLine {{ stroke: rgba(255,255,255,0.55) !important; }}
+    .er.relationshipLabelBox {{ fill: rgba(40,40,40,0.7) !important; }}
+    .er.relationshipLabel {{ fill: #ddd !important; }}
+  `;
+  svgEl.prepend(style);
+
   window.pz = svgPanZoom(svgEl, {{
     zoomEnabled:    true,
     panEnabled:     true,
