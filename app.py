@@ -34,14 +34,14 @@ def _init_state() -> None:
         "skip_ai": False,
         "skip_report": False,
         "skip_quality": False,
-        "output_formats": ["markdown", "docx", "html"],
+        "output_formats": ["docx", "html"],
         "pipeline_done": False,
         "pipeline_error": None,
         "pbix_path": None,
         "tmp_dir": None,
         "findings": [],
         "generated_files": {},
-        "markdown_text": "",
+        "html_content": "",
         "model": None,
     }
     for k, v in defaults.items():
@@ -99,7 +99,7 @@ def _render_sidebar() -> None:
         )
         st.session_state["output_formats"] = st.multiselect(
             "Output formats",
-            options=["markdown", "docx", "html"],
+            options=["docx", "html"],
             default=st.session_state["output_formats"],
         )
 
@@ -190,11 +190,6 @@ def _run_pipeline(pbix_path: Path, tmp_dir: Path) -> None:
         out_dir = tmp_dir / "output"
         generated_files: dict[str, Path] = {}
 
-        if "markdown" in formats:
-            from renderer import markdown_renderer
-            path = markdown_renderer.render(model, findings, out_dir)
-            generated_files["markdown"] = path
-
         if "docx" in formats:
             try:
                 from renderer import docx_renderer
@@ -218,9 +213,9 @@ def _run_pipeline(pbix_path: Path, tmp_dir: Path) -> None:
     # Store results in session state
     st.session_state["findings"] = findings
     st.session_state["generated_files"] = generated_files
-    st.session_state["markdown_text"] = (
-        generated_files["markdown"].read_text(encoding="utf-8")
-        if "markdown" in generated_files
+    st.session_state["html_content"] = (
+        generated_files["html"].read_text(encoding="utf-8")
+        if "html" in generated_files
         else ""
     )
     st.session_state["model"] = model
@@ -278,7 +273,7 @@ def _run_ai(model, api_key: str) -> None:
 def _render_results() -> None:
     generated_files: dict[str, Path] = st.session_state["generated_files"]
     findings = st.session_state["findings"]
-    markdown_text = st.session_state["markdown_text"]
+    html_content = st.session_state["html_content"]
     model = st.session_state.get("model")
 
     tab_diagram, tab_preview, tab_quality, tab_downloads = st.tabs(
@@ -390,10 +385,10 @@ def _render_results() -> None:
                 st.code(mermaid_src, language="text")
 
     with tab_preview:
-        if markdown_text:
-            st.markdown(markdown_text)
+        if html_content:
+            st.components.v1.html(html_content, height=900, scrolling=True)
         else:
-            st.info("Markdown output was not selected — no preview available.")
+            st.info("HTML output was not selected — no preview available.")
 
     with tab_quality:
         if not findings:
@@ -433,7 +428,6 @@ def _render_results() -> None:
 
             cols = st.columns(len(generated_files))
             labels = {
-                "markdown": ("📝 Markdown (.md)", "text/markdown"),
                 "docx": ("📘 Word (.docx)", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
                 "html": ("🌐 HTML (.html)", "text/html"),
             }

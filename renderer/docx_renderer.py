@@ -1,8 +1,11 @@
 """
 Renders a SemanticModel to a Word (.docx) document using python-docx.
+Cover page, Data Sources summary, enhanced columns, measures grouped
+by display folder with dependencies and visual usage.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from pathlib import Path
 
 _CARD = {
@@ -22,14 +25,14 @@ from analyzer.quality_checks import QualityFinding
 from models.schema import Measure, Relationship, SemanticModel, Table
 
 
-_GRAY = RGBColor(0xF5, 0xF5, 0xF5)  # light gray for code background
+_GRAY      = RGBColor(0xF5, 0xF5, 0xF5)
 _CODE_FONT = "Courier New"
 
 
 def render(model: SemanticModel, findings: list[QualityFinding], output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     safe_name = model.name.replace(" ", "_").replace("/", "-")
-    out_path = output_dir / f"{safe_name}.docx"
+    out_path  = output_dir / f"{safe_name}.docx"
     doc = _build(model, findings)
     doc.save(out_path)
     return out_path
@@ -39,55 +42,69 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> Document:
     doc = Document()
     _set_default_font(doc)
 
-    # Title
+    # ── Cover page ────────────────────────────────────────────────────────────
     title = doc.add_heading(model.name, level=0)
     title.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    # Metadata
+    sub = doc.add_paragraph("Semantic Model Documentation")
+    sub.runs[0].italic = True
+    sub.runs[0].font.size = Pt(14)
+
+    doc.add_paragraph()
     p = doc.add_paragraph()
     p.add_run("Source file: ").bold = True
     p.add_run(model.source_file)
     p = doc.add_paragraph()
     p.add_run("Generated: ").bold = True
     p.add_run(model.generated_at)
+    p = doc.add_paragraph()
+    p.add_run("Report analysed: ").bold = True
+    p.add_run("Yes" if model.report_parsed else "No — run without Skip Report for visual usage data")
 
-    # TOC placeholder
+    doc.add_page_break()
+
+    # ── Table of Contents ─────────────────────────────────────────────────────
     _add_toc(doc)
 
-    # Overview
+    # ── Overview ──────────────────────────────────────────────────────────────
     doc.add_heading("Overview", level=1)
     visible_tables = [t for t in model.tables if not t.is_hidden]
-    all_measures = [m for t in model.tables for m in t.measures]
-    tbl = doc.add_table(rows=5, cols=2)
+    all_measures   = [m for t in model.tables for m in t.measures]
+    tbl = doc.add_table(rows=6, cols=2)
     tbl.style = "Table Grid"
-    _tbl_row(tbl, 0, "Tables", str(len(visible_tables)))
-    _tbl_row(tbl, 1, "Relationships", str(len(model.relationships)))
-    _tbl_row(tbl, 2, "Total measures", str(len(all_measures)))
-    _tbl_row(tbl, 3, "Roles (RLS)", str(len(model.roles)))
+    _tbl_row(tbl, 0, "Tables",           str(len(visible_tables)))
+    _tbl_row(tbl, 1, "Relationships",    str(len(model.relationships)))
+    _tbl_row(tbl, 2, "Total measures",   str(len(all_measures)))
+    _tbl_row(tbl, 3, "Roles (RLS)",      str(len(model.roles)))
     _tbl_row(tbl, 4, "Quality findings", str(len(findings)))
+    _tbl_row(tbl, 5, "Report analysed",  "Yes" if model.report_parsed else "No")
     doc.add_paragraph()
 
-    # Model Diagram
+    # ── Data Sources ──────────────────────────────────────────────────────────
+    source_tables = [t for t in model.tables if t.source_query and not t.is_hidden]
+    if source_tables:
+        _render_data_sources(doc, source_tables)
+
+    # ── Model Diagram ─────────────────────────────────────────────────────────
     from renderer.diagram_renderer import build_mermaid
     doc.add_heading("Model Diagram", level=1)
     p = doc.add_paragraph()
     p.add_run(
         "The diagram below is in Mermaid erDiagram format. "
-        "It renders automatically in GitHub, VS Code preview, Notion, GitLab, "
-        "and most modern Markdown viewers."
+        "It renders automatically in GitHub, VS Code preview, Notion, and GitLab."
     ).italic = True
     _add_code_block(doc, build_mermaid(model))
     doc.add_paragraph()
 
-    # Tables
+    # ── Tables ────────────────────────────────────────────────────────────────
     doc.add_heading("Tables", level=1)
     for table in model.tables:
-        _render_table(doc, table)
+        _render_table(doc, table, model.report_parsed)
 
-    # Relationships
+    # ── Relationships ─────────────────────────────────────────────────────────
     _render_relationships(doc, model.relationships)
 
-    # Roles
+    # ── Roles ─────────────────────────────────────────────────────────────────
     if model.roles:
         doc.add_heading("Row-Level Security Roles", level=1)
         for role in model.roles:
@@ -98,13 +115,29 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> Document:
             else:
                 doc.add_paragraph("No table filters defined.")
 
-    # Quality findings (always show section)
+    # ── Quality Findings ──────────────────────────────────────────────────────
     _render_findings(doc, findings)
 
     return doc
 
 
-def _render_table(doc: Document, table: Table) -> None:
+def _render_data_sources(doc: Document, source_tables: list[Table]) -> None:
+    doc.add_heading("Data Sources", level=1)
+    tbl = doc.add_table(rows=1 + len(source_tables), cols=4)
+    tbl.style = "Table Grid"
+    for i, hdr in enumerate(["Table", "Source Type", "Connection", "Query Complexity"]):
+        tbl.cell(0, i).text = hdr
+        tbl.cell(0, i).paragraphs[0].runs[0].bold = True
+    for r, table in enumerate(source_tables, start=1):
+        pq = table.source_query
+        tbl.cell(r, 0).text = table.name
+        tbl.cell(r, 1).text = pq.source_type
+        tbl.cell(r, 2).text = pq.source_details or ""
+        tbl.cell(r, 3).text = pq.complexity_rating
+    doc.add_paragraph()
+
+
+def _render_table(doc: Document, table: Table, report_parsed: bool) -> None:
     hidden_tag = " (hidden)" if table.is_hidden else ""
     doc.add_heading(f"{table.name}{hidden_tag}", level=2)
 
@@ -116,7 +149,7 @@ def _render_table(doc: Document, table: Table) -> None:
     meta.add_run("Role: ").bold = True
     meta.add_run(table.inferred_role + "  ")
     meta.add_run("Type: ").bold = True
-    meta.add_run("Calculated table" if table.is_calculated else "Imported/DirectQuery")
+    meta.add_run("Calculated table" if table.is_calculated else "Imported / DirectQuery")
 
     if table.source_query:
         pq = table.source_query
@@ -128,28 +161,59 @@ def _render_table(doc: Document, table: Table) -> None:
         p.add_run("  Query complexity: ").bold = True
         p.add_run(pq.complexity_rating)
 
-    # Columns table
+    # ── Columns ───────────────────────────────────────────────────────────────
     visible_cols = [c for c in table.columns if not c.is_hidden]
     if visible_cols:
-        doc.add_heading("Columns", level=3)
-        col_tbl = doc.add_table(rows=1 + len(visible_cols), cols=2)
-        col_tbl.style = "Table Grid"
+        has_format = any(c.format_string for c in visible_cols)
+        has_source = any(c.source_column for c in visible_cols)
+
         headers = ["Column", "Type"]
-        for i, h in enumerate(headers):
-            col_tbl.cell(0, i).text = h
+        if has_format:
+            headers.append("Format")
+        if has_source:
+            headers.append("Source Column")
+
+        doc.add_heading("Columns", level=3)
+        col_tbl = doc.add_table(rows=1 + len(visible_cols), cols=len(headers))
+        col_tbl.style = "Table Grid"
+        for i, hdr in enumerate(headers):
+            col_tbl.cell(0, i).text = hdr
             col_tbl.cell(0, i).paragraphs[0].runs[0].bold = True
         for r, col in enumerate(visible_cols, start=1):
-            col_tbl.cell(r, 0).text = col.name
+            calc_suffix = " [calc]" if col.is_calculated else ""
+            col_tbl.cell(r, 0).text = col.name + calc_suffix
             col_tbl.cell(r, 1).text = col.data_type
+            if has_format:
+                col_tbl.cell(r, 2).text = col.format_string or ""
+            if has_source:
+                col_tbl.cell(r, len(headers) - 1).text = col.source_column or ""
         doc.add_paragraph()
 
-    # Measures
+        # Calculated column expressions
+        calc_cols = [c for c in visible_cols if c.is_calculated and c.dax_expression]
+        if calc_cols:
+            doc.add_heading("Calculated Column Expressions", level=4)
+            for col in calc_cols:
+                p = doc.add_paragraph()
+                p.add_run(col.name + ":").bold = True
+                _add_code_block(doc, col.dax_expression)
+
+    # ── Measures — grouped by display folder ──────────────────────────────────
     if table.measures:
         doc.add_heading("Measures", level=3)
-        for measure in table.measures:
-            _render_measure(doc, measure)
+        folders: dict[str, list[Measure]] = defaultdict(list)
+        for m in table.measures:
+            folders[m.display_folder or ""].append(m)
+        folder_order = [""] + sorted(k for k in folders if k)
+        for folder_key in folder_order:
+            if folder_key not in folders:
+                continue
+            if folder_key:
+                doc.add_heading(f"📁 {folder_key}", level=4)
+            for measure in folders[folder_key]:
+                _render_measure(doc, measure, report_parsed)
 
-    # Power Query steps
+    # ── Power Query Steps ─────────────────────────────────────────────────────
     if table.source_query and table.source_query.step_descriptions:
         pq = table.source_query
         doc.add_heading("Power Query Steps", level=3)
@@ -160,21 +224,19 @@ def _render_table(doc: Document, table: Table) -> None:
             p = doc.add_paragraph(style="List Number")
             p.add_run(step_name + ": ").bold = True
             p.add_run(desc)
-
         doc.add_heading("M Code", level=4)
         _add_code_block(doc, pq.m_code)
 
-    # Hierarchies
+    # ── Hierarchies ───────────────────────────────────────────────────────────
     if table.hierarchies:
         doc.add_heading("Hierarchies", level=3)
-        for h in table.hierarchies:
-            doc.add_paragraph(f"{h.name}: {' → '.join(h.levels)}", style="List Bullet")
+        for hr in table.hierarchies:
+            doc.add_paragraph(f"{hr.name}: {' → '.join(hr.levels)}", style="List Bullet")
 
 
-def _render_measure(doc: Document, measure: Measure) -> None:
+def _render_measure(doc: Document, measure: Measure, report_parsed: bool) -> None:
     hidden_tag = " (hidden)" if measure.is_hidden else ""
-    folder_tag = f"  [{measure.display_folder}]" if measure.display_folder else ""
-    p = doc.add_heading(f"{measure.name}{hidden_tag}{folder_tag}", level=4)
+    p = doc.add_heading(f"{measure.name}{hidden_tag}", level=4)
 
     if measure.description:
         doc.add_paragraph(measure.description)
@@ -187,11 +249,30 @@ def _render_measure(doc: Document, measure: Measure) -> None:
     meta = doc.add_paragraph()
     if measure.format_string:
         meta.add_run("Format: ").bold = True
-        meta.add_run(f"`{measure.format_string}`  ")
+        meta.add_run(f"{measure.format_string}  ")
     meta.add_run("Complexity: ").bold = True
     meta.add_run(measure.complexity_tier)
-    if measure.used_in_visuals:
-        meta.add_run(f"  Used in {len(measure.used_in_visuals)} visual(s).")
+
+    # Visual usage
+    if report_parsed:
+        if measure.used_in_visuals:
+            p_vis = doc.add_paragraph()
+            p_vis.add_run("Used in: ").bold = True
+            p_vis.add_run(", ".join(measure.used_in_visuals))
+        else:
+            p_vis = doc.add_paragraph()
+            p_vis.add_run("Visual usage: ").bold = True
+            p_vis.add_run("Not used in any visual")
+    else:
+        p_vis = doc.add_paragraph()
+        p_vis.add_run("Visual usage: ").bold = True
+        p_vis.add_run("Report not analysed")
+
+    # Dependencies
+    if measure.dependencies:
+        p_dep = doc.add_paragraph()
+        p_dep.add_run("Dependencies: ").bold = True
+        p_dep.add_run(", ".join(measure.dependencies))
 
     _add_code_block(doc, measure.dax)
 
@@ -202,9 +283,8 @@ def _render_relationships(doc: Document, relationships: list[Relationship]) -> N
     doc.add_heading("Relationships", level=1)
     tbl = doc.add_table(rows=1 + len(relationships), cols=5)
     tbl.style = "Table Grid"
-    headers = ["From", "To", "Cardinality", "Cross-filter", "Active"]
-    for i, h in enumerate(headers):
-        tbl.cell(0, i).text = h
+    for i, hdr in enumerate(["From", "To", "Cardinality", "Cross-filter", "Active"]):
+        tbl.cell(0, i).text = hdr
         tbl.cell(0, i).paragraphs[0].runs[0].bold = True
     for r, rel in enumerate(relationships, start=1):
         tbl.cell(r, 0).text = f"{rel.from_table}[{rel.from_column}]"
@@ -221,17 +301,17 @@ def _render_findings(doc: Document, findings: list[QualityFinding]) -> None:
         doc.add_paragraph("No quality issues found.")
         return
     warnings = [f for f in findings if f.severity == "warning"]
-    infos = [f for f in findings if f.severity == "info"]
+    infos    = [f for f in findings if f.severity == "info"]
     for section_findings, label, icon in [
         (warnings, "Warnings", "\u26a0\ufe0f"),
-        (infos, "Info", "\u2139\ufe0f"),
+        (infos,    "Info",     "\u2139\ufe0f"),
     ]:
         if not section_findings:
             continue
         doc.add_heading(f"{label} ({len(section_findings)})", level=2)
         for f in section_findings:
             p = doc.add_paragraph(style="List Bullet")
-            p.add_run(f"{icon} ").bold = False
+            p.add_run(f"{icon} ")
             p.add_run(f.object_name).bold = True
             p.add_run(f" ({f.category}): {f.detail}")
 
@@ -241,12 +321,11 @@ def _add_code_block(doc: Document, code: str) -> None:
     run = p.add_run(code)
     run.font.name = _CODE_FONT
     run.font.size = Pt(9)
-    # Light gray shading
     pPr = p._p.get_or_add_pPr()
     shd = OxmlElement("w:shd")
-    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:val"),   "clear")
     shd.set(qn("w:color"), "auto")
-    shd.set(qn("w:fill"), "F5F5F5")
+    shd.set(qn("w:fill"),  "F5F5F5")
     pPr.append(shd)
 
 
@@ -274,6 +353,7 @@ def _add_toc(doc: Document) -> None:
     run._r.append(fldChar2)
     run._r.append(fldChar3)
     doc.add_paragraph("(Right-click → Update Field to refresh the table of contents.)")
+    doc.add_page_break()
 
 
 def _set_default_font(doc: Document) -> None:

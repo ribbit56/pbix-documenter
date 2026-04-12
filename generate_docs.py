@@ -26,7 +26,7 @@ console = Console()
 @click.option("--output-dir", "-o", default="./output", show_default=True,
               help="Directory where output files will be written.")
 @click.option("--format", "-f", "fmt", default="all", show_default=True,
-              help="Output format(s): markdown, docx, html, pdf, all")
+              help="Output format(s): docx, html, pdf, all")
 @click.option("--skip-ai", is_flag=True, default=False,
               help="Skip LLM descriptions (faster, metadata-only output).")
 @click.option("--skip-report", is_flag=True, default=False,
@@ -135,12 +135,6 @@ def main(
     console.print("\n[bold]Rendering output...[/bold]")
     generated: list[Path] = []
 
-    if "markdown" in formats:
-        from renderer import markdown_renderer
-        path = markdown_renderer.render(model, findings, out_dir)
-        generated.append(path)
-        console.print(f"  [ok] Markdown  -> [cyan]{path}[/cyan]")
-
     if "docx" in formats:
         try:
             from renderer import docx_renderer
@@ -177,7 +171,7 @@ def main(
 
 
 def _parse_formats(fmt: str) -> list[str]:
-    all_formats = ["markdown", "docx", "html", "pdf"]
+    all_formats = ["docx", "html", "pdf"]
     fmt = fmt.strip().lower()
     if fmt == "all":
         return all_formats
@@ -185,7 +179,7 @@ def _parse_formats(fmt: str) -> list[str]:
     valid = [f for f in parts if f in all_formats]
     if not valid:
         raise click.BadParameter(
-            f"Unknown format(s): {fmt}. Choose from: markdown, docx, html, pdf, all"
+            f"Unknown format(s): {fmt}. Choose from: docx, html, pdf, all"
         )
     return valid
 
