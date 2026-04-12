@@ -290,8 +290,98 @@ def _render_results() -> None:
             st.info("No model available.")
         else:
             from renderer import diagram_renderer
+            import json
             dot_src = diagram_renderer.build_dot(model)
-            st.graphviz_chart(dot_src, use_container_width=True)
+            dot_json = json.dumps(dot_src)   # safely escaped JS string
+            html_src = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@2/dist/graphviz.umd.js"
+        type="application/javascript"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: transparent; font-family: sans-serif; }}
+  #toolbar {{
+    display: flex; gap: 6px; padding: 8px 10px;
+    background: rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }}
+  #toolbar button {{
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #ddd; border-radius: 6px;
+    padding: 5px 12px; font-size: 13px; cursor: pointer;
+    transition: background 0.15s;
+  }}
+  #toolbar button:hover {{ background: rgba(255,255,255,0.22); color: #fff; }}
+  #toolbar .sep {{ flex: 1; }}
+  #toolbar .hint {{
+    color: rgba(255,255,255,0.35); font-size: 12px;
+    align-self: center; padding-right: 4px;
+  }}
+  #container {{
+    width: 100%; height: calc(100vh - 52px);
+    overflow: hidden; position: relative;
+  }}
+  #container svg {{
+    width: 100%; height: 100%;
+  }}
+  #spinner {{
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.5); font-size: 14px;
+  }}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button onclick="pz.zoomIn()" title="Zoom in">＋</button>
+  <button onclick="pz.zoomOut()" title="Zoom out">－</button>
+  <button onclick="pz.fit(); pz.center();" title="Fit to window">⊡ Fit</button>
+  <button onclick="pz.resetZoom(); pz.resetPan();" title="Reset view">↺ Reset</button>
+  <span class="sep"></span>
+  <span class="hint">Scroll to zoom &nbsp;·&nbsp; Drag to pan</span>
+</div>
+<div id="container">
+  <div id="spinner">Rendering diagram…</div>
+</div>
+<script>
+(async () => {{
+  const dot = {dot_json};
+  const graphviz = await Hpcc.Graphviz.load();
+  const svgStr = await graphviz.layout(dot, "svg", "dot");
+
+  const container = document.getElementById("container");
+  container.innerHTML = svgStr;
+
+  const svg = container.querySelector("svg");
+  // Let the container control sizing
+  svg.removeAttribute("width");
+  svg.removeAttribute("height");
+  svg.style.width  = "100%";
+  svg.style.height = "100%";
+
+  window.pz = svgPanZoom(svg, {{
+    zoomEnabled:    true,
+    panEnabled:     true,
+    controlIconsEnabled: false,
+    fit:            true,
+    center:         true,
+    minZoom:        0.05,
+    maxZoom:        20,
+    zoomScaleSensitivity: 0.3,
+  }});
+
+  // Re-fit when the window resizes
+  window.addEventListener("resize", () => {{ pz.fit(); pz.center(); }});
+}})();
+</script>
+</body>
+</html>"""
+            st.components.v1.html(html_src, height=680, scrolling=False)
+
             with st.expander("Show Mermaid source (copy into any Mermaid viewer)"):
                 mermaid_src = diagram_renderer.build_mermaid(model)
                 st.code(mermaid_src, language="text")
