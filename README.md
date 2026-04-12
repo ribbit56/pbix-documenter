@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="logo/logo-dark.svg" width="160" alt="PBIX Documenter dark logo" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="logo/logo-light.svg" width="160" alt="PBIX Documenter light logo" />
+</p>
+
 # PBIX Semantic Model Documenter
 
 A CLI tool and Streamlit desktop app that automatically generates polished documentation for Power BI semantic models from any `.pbix` file — entirely on your local machine, no cloud upload required.

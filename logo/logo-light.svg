@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F0F4FF"/>
+      <stop offset="100%" stop-color="#E8EEF8"/>
+    </linearGradient>
+    <linearGradient id="doc-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F5F8FF"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E88E5"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#BDD0F0"/>
+      <stop offset="100%" stop-color="#A0BADE"/>
+    </linearGradient>
+    <filter id="doc-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#1565C0" flood-opacity="0.15"/>
+    </filter>
+    <filter id="chip-shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" rx="60" fill="url(#bg)"/>
+
+  <!-- Subtle blueprint grid -->
+  <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1565C0" stroke-width="0.4" opacity="0.12"/>
+  </pattern>
+  <rect width="400" height="400" rx="60" fill="url(#grid)"/>
+
+  <!-- ── Document page ── -->
+  <g filter="url(#doc-shadow)">
+    <!-- Main body -->
+    <rect x="82" y="55" width="210" height="268" rx="12" fill="url(#doc-fill)" stroke="#D0DCF0" stroke-width="1.5"/>
+    <!-- Folded corner triangle (cutaway) -->
+    <polygon points="250,55 292,55 292,97" fill="url(#bg)"/>
+    <!-- Fold flap -->
+    <polygon points="250,55 292,97 250,97" fill="url(#fold)" stroke="#C0D0E8" stroke-width="1"/>
+    <!-- Fold crease line shadow -->
+    <line x1="250" y1="55" x2="292" y2="97" stroke="#A8BDD8" stroke-width="1"/>
+
+    <!-- ── Header stripe ── -->
+    <rect x="82" y="55" width="168" height="36" rx="12" fill="url(#accent)"/>
+    <rect x="82" y="67" width="168" height="24" fill="url(#accent)"/>
+    <!-- Header text lines (simulated) -->
+    <rect x="96" y="65" width="80" height="7" rx="3.5" fill="white" opacity="0.9"/>
+    <rect x="96" y="77" width="50" height="5" rx="2.5" fill="white" opacity="0.5"/>
+
+    <!-- ── Mini schema inside the doc ── -->
+    <!-- Fact chip -->
+    <g filter="url(#chip-shadow)">
+      <rect x="152" y="110" width="72" height="48" rx="6" fill="#1565C0"/>
+      <rect x="152" y="110" width="72" height="16" rx="6" fill="#1E88E5"/>
+      <rect x="152" y="118" width="72" height="8" fill="#1E88E5"/>
+      <rect x="158" y="113" width="32" height="4" rx="2" fill="white" opacity="0.9"/>
+      <rect x="158" y="130" width="10" height="4" rx="2" fill="#90CAF9"/>
+      <rect x="171" y="130" width="36" height="4" rx="2" fill="#0D3875"/>
+      <rect x="158" y="138" width="10" height="4" rx="2" fill="#90CAF9" opacity="0.6"/>
+      <rect x="171" y="138" width="28" height="4" rx="2" fill="#0D3875"/>
+      <rect x="158" y="146" width="10" height="4" rx="2" fill="#90CAF9" opacity="0.6"/>
+      <rect x="171" y="146" width="32" height="4" rx="2" fill="#0D3875"/>
+    </g>
+
+    <!-- Left dim chip -->
+    <g filter="url(#chip-shadow)">
+      <rect x="96" y="176" width="60" height="40" rx="5" fill="#2E7D32"/>
+      <rect x="96" y="176" width="60" height="14" rx="5" fill="#43A047"/>
+      <rect x="96" y="183" width="60" height="7" fill="#43A047"/>
+      <rect x="101" y="179" width="28" height="4" rx="2" fill="white" opacity="0.9"/>
+      <rect x="101" y="194" width="10" height="3" rx="1.5" fill="#A5D6A7"/>
+      <rect x="114" y="194" width="30" height="3" rx="1.5" fill="#1B4D1E"/>
+      <rect x="101" y="202" width="10" height="3" rx="1.5" fill="#A5D6A7" opacity="0.6"/>
+      <rect x="114" y="202" width="22" height="3" rx="1.5" fill="#1B4D1E"/>
+      <rect x="101" y="210" width="10" height="3" rx="1.5" fill="#A5D6A7" opacity="0.6"/>
+      <rect x="114" y="210" width="26" height="3" rx="1.5" fill="#1B4D1E"/>
+    </g>
+
+    <!-- Right dim chip -->
+    <g filter="url(#chip-shadow)">
+      <rect x="220" y="176" width="60" height="40" rx="5" fill="#2E7D32"/>
+      <rect x="220" y="176" width="60" height="14" rx="5" fill="#43A047"/>
+      <rect x="220" y="183" width="60" height="7" fill="#43A047"/>
+      <rect x="225" y="179" width="28" height="4" rx="2" fill="white" opacity="0.9"/>
+      <rect x="225" y="194" width="10" height="3" rx="1.5" fill="#A5D6A7"/>
+      <rect x="238" y="194" width="30" height="3" rx="1.5" fill="#1B4D1E"/>
+      <rect x="225" y="202" width="10" height="3" rx="1.5" fill="#A5D6A7" opacity="0.6"/>
+      <rect x="238" y="202" width="22" height="3" rx="1.5" fill="#1B4D1E"/>
+      <rect x="225" y="210" width="10" height="3" rx="1.5" fill="#A5D6A7" opacity="0.6"/>
+      <rect x="238" y="210" width="26" height="3" rx="1.5" fill="#1B4D1E"/>
+    </g>
+
+    <!-- Connector lines between chips -->
+    <line x1="156" y1="196" x2="152" y2="165" stroke="#1565C0" stroke-width="1.5" opacity="0.5" stroke-dasharray="3,2"/>
+    <line x1="220" y1="196" x2="224" y2="165" stroke="#1565C0" stroke-width="1.5" opacity="0.5" stroke-dasharray="3,2"/>
+
+    <!-- ── Text lines below schema ── -->
+    <rect x="96" y="232" width="140" height="6" rx="3" fill="#D0DCF0"/>
+    <rect x="96" y="244" width="110" height="6" rx="3" fill="#D0DCF0"/>
+    <rect x="96" y="256" width="130" height="6" rx="3" fill="#D0DCF0"/>
+    <rect x="96" y="268" width="90"  height="6" rx="3" fill="#D0DCF0"/>
+    <rect x="96" y="292" width="120" height="6" rx="3" fill="#E0E8F4"/>
+    <rect x="96" y="304" width="80"  height="6" rx="3" fill="#E0E8F4"/>
+  </g>
+
+  <!-- ── Decorative accent circle (bottom-right) ── -->
+  <circle cx="318" cy="318" r="46" fill="url(#accent)" opacity="0.12"/>
+  <circle cx="318" cy="318" r="30" fill="url(#accent)" opacity="0.18"/>
+  <!-- Sigma symbol in circle -->
+  <text x="308" y="328" font-family="Georgia,serif" font-size="26" font-weight="bold"
+        fill="#1565C0" opacity="0.75">∑</text>
+
+  <!-- ── Small "PD" monogram (top-left) ── -->
+  <circle cx="68" cy="68" r="28" fill="url(#accent)"/>
+  <text x="56" y="76" font-family="Helvetica Neue,Arial,sans-serif" font-size="18"
+        font-weight="700" fill="white" letter-spacing="1">PD</text>
+</svg>
