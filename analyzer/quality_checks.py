@@ -20,7 +20,6 @@ class QualityFinding:
 def run_all(model: SemanticModel) -> list[QualityFinding]:
     findings: list[QualityFinding] = []
     findings.extend(_check_orphaned_measures(model))
-    findings.extend(_check_missing_descriptions(model))
     findings.extend(_check_bidirectional_relationships(model))
     findings.extend(_check_filter_on_large_table(model))
     findings.extend(_check_broken_measure_references(model))
@@ -50,34 +49,6 @@ def _check_orphaned_measures(model: SemanticModel) -> list[QualityFinding]:
     return findings
 
 
-def _check_missing_descriptions(model: SemanticModel) -> list[QualityFinding]:
-    """Model objects with no description."""
-    findings = []
-    for table in model.tables:
-        if not table.description:
-            findings.append(QualityFinding(
-                severity="info",
-                category="missing_description",
-                object_name=table.name,
-                detail="Table has no description. Add one to improve discoverability.",
-            ))
-        for measure in table.measures:
-            if not measure.description:
-                findings.append(QualityFinding(
-                    severity="info",
-                    category="missing_description",
-                    object_name=f"{table.name}[{measure.name}]",
-                    detail="Measure has no description.",
-                ))
-        for col in table.columns:
-            if not col.description and not col.is_hidden:
-                findings.append(QualityFinding(
-                    severity="info",
-                    category="missing_description",
-                    object_name=f"{table.name}[{col.name}]",
-                    detail="Column has no description.",
-                ))
-    return findings
 
 
 def _check_bidirectional_relationships(model: SemanticModel) -> list[QualityFinding]:
