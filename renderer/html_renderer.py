@@ -103,9 +103,15 @@ def _build_nav(model: SemanticModel) -> str:
         items.append('<a href="#data-sources">Data Sources</a>')
     items.append('<a href="#model-diagram">Model Diagram</a>')
     items.append('<a href="#tables">Tables</a>')
-    for table in model.tables:
+    for table in [t for t in model.tables if not t.is_hidden]:
         tid = _tid(table.name)
         items.append(f'<a href="#{tid}" class="nav-sub">{h(table.name)}</a>')
+    all_measures = [m for t in model.tables for m in t.measures]
+    if all_measures:
+        items.append('<a href="#measures">Measures</a>')
+        for t in model.tables:
+            if t.measures:
+                items.append(f'<a href="#measures-{_tid(t.name)}" class="nav-sub">{h(t.name)} ({len(t.measures)})</a>')
     items.append('<a href="#relationships">Relationships</a>')
     if model.roles:
         items.append('<a href="#roles">Roles</a>')
@@ -160,11 +166,15 @@ def _build_content(model: SemanticModel, findings: list[QualityFinding], mermaid
       </div>
     </section>""")
 
-    # Tables
+    # Tables (columns only — measures have their own section)
     parts.append('<section id="tables"><h2>Tables</h2>')
     for table in model.tables:
-        parts.append(_render_table(table, model.report_parsed))
+        parts.append(_render_table(table))
     parts.append("</section>")
+
+    # Measures (dedicated top-level section)
+    if all_measures:
+        parts.append(_render_measures_section(model))
 
     # Relationships
     parts.append(_render_relationships(model.relationships))
@@ -208,7 +218,8 @@ def _render_data_sources(source_tables: list[Table]) -> str:
     </section>"""
 
 
-def _render_table(table: Table, report_parsed: bool) -> str:
+def _render_table(table: Table) -> str:
+    """Render a table card — columns only (measures are in the dedicated Measures section)."""
     tid = _tid(table.name)
     hidden_badge = '<span class="badge hidden-badge">hidden</span>' if table.is_hidden else ""
     role_badge   = f'<span class="badge role-badge role-{h(table.inferred_role.replace(" ", "-"))}">{h(table.inferred_role)}</span>'
@@ -223,6 +234,8 @@ def _render_table(table: Table, report_parsed: bool) -> str:
             src += f" — <code>{h(pq.source_details)}</code>"
         meta_parts.append(f"<strong>Source:</strong> {src}")
         meta_parts.append(f"<strong>Query complexity:</strong> {h(pq.complexity_rating)}")
+    if table.measures:
+        meta_parts.append(f"<strong>Measures:</strong> <a href='#measures-{tid}'>{len(table.measures)}</a>")
 
     desc_html = f'<p class="description">{h(table.description)}</p>' if table.description else ""
     meta_html = " &nbsp;|&nbsp; ".join(meta_parts)
@@ -267,31 +280,14 @@ def _render_table(table: Table, report_parsed: bool) -> str:
           </details>"""
 
         cols_html = f"""
-      <h4>Columns</h4>
+      <h4>Columns ({len(visible_cols)})</h4>
       <table class="data-table">
         <thead><tr>{header_cells}</tr></thead>
         <tbody>{col_rows}</tbody>
       </table>
       {calc_exprs_html}"""
-
-    # Measures — grouped by display folder
-    measures_html = ""
-    if table.measures:
-        folders: dict[str, list[Measure]] = defaultdict(list)
-        for m in table.measures:
-            folders[m.display_folder or ""].append(m)
-
-        folder_order = [""] + sorted(k for k in folders if k)
-        rendered_measures = ""
-        for folder_key in folder_order:
-            if folder_key not in folders:
-                continue
-            if folder_key:
-                rendered_measures += f'<h5 class="folder-heading">📁 {h(folder_key)}</h5>'
-            for m in folders[folder_key]:
-                rendered_measures += _render_measure(m, report_parsed)
-
-        measures_html = f"<h4>Measures</h4>{rendered_measures}"
+    else:
+        cols_html = "<p class='meta'><em>No visible columns</em></p>"
 
     # Power Query steps
     pq_html = ""
@@ -333,67 +329,117 @@ def _render_table(table: Table, report_parsed: bool) -> str:
       {desc_html}
       <p class="meta">{meta_html}</p>
       {cols_html}
-      {measures_html}
       {pq_html}
       {hier_html}
     </div>
   </details>"""
 
 
+def _render_measures_section(model: SemanticModel) -> str:
+    """Dedicated top-level Measures section — all measures across all tables."""
+    parts = ['<section id="measures"><h2>Measures</h2>']
+
+    for table in model.tables:
+        if not table.measures:
+            continue
+        tid = _tid(table.name)
+        parts.append(f'<h3 id="measures-{tid}">{h(table.name)}</h3>')
+
+        # Group by display folder
+        folders: dict[str, list[Measure]] = defaultdict(list)
+        for m in table.measures:
+            folders[m.display_folder or ""].append(m)
+        folder_order = [""] + sorted(k for k in folders if k)
+
+        for folder_key in folder_order:
+            if folder_key not in folders:
+                continue
+            if folder_key:
+                parts.append(f'<h4 class="folder-heading">📁 {h(folder_key)}</h4>')
+            for m in folders[folder_key]:
+                parts.append(_render_measure(m, model.report_parsed))
+
+    parts.append("</section>")
+    return "\n".join(parts)
+
+
 def _render_measure(measure: Measure, report_parsed: bool) -> str:
     hidden_badge = '<span class="badge hidden-badge">hidden</span>' if measure.is_hidden else ""
-    folder_badge = (
-        f'<span class="badge folder-badge">{h(measure.display_folder)}</span>'
-        if measure.display_folder else ""
-    )
     complexity_class = {
         "simple":       "measure-simple",
         "intermediate": "measure-intermediate",
         "advanced":     "measure-advanced",
     }.get(measure.complexity_tier, "")
 
-    desc_html    = f"<p>{h(measure.description)}</p>" if measure.description else ""
+    # Description / business purpose
+    desc_html    = f'<p class="measure-desc">{h(measure.description)}</p>' if measure.description else ""
     purpose_html = (
-        f'<p class="business-purpose"><em>Business purpose: {h(measure.business_purpose)}</em></p>'
+        f'<p class="business-purpose">💡 {h(measure.business_purpose)}</p>'
         if measure.business_purpose else ""
     )
 
-    meta_parts = [f"Complexity: <span class='badge complexity-badge complexity-{h(measure.complexity_tier)}'>{h(measure.complexity_tier)}</span>"]
+    # Meta row: complexity + format
+    badges = f"<span class='badge complexity-badge complexity-{h(measure.complexity_tier)}'>{h(measure.complexity_tier)}</span>"
     if measure.format_string:
-        meta_parts.append(f"Format: <code>{h(measure.format_string)}</code>")
+        badges += f" &nbsp;<span class='badge'>Format: <code>{h(measure.format_string)}</code></span>"
 
-    # Visual usage
-    if report_parsed:
-        if measure.used_in_visuals:
-            vis_items = "".join(f"<li>{h(v)}</li>" for v in measure.used_in_visuals)
-            meta_parts.append(
-                f'<details class="inline-details"><summary>Used in {len(measure.used_in_visuals)} visual(s)</summary>'
-                f'<ul class="detail-list">{vis_items}</ul></details>'
-            )
-        else:
-            meta_parts.append('<span class="badge orphan-badge">not used in any visual</span>')
-    else:
-        meta_parts.append("<em>Visual usage: report not analysed</em>")
+    # Visual usage — grouped by report page
+    usage_html = _render_visual_usage(measure, report_parsed)
 
     # Dependencies
     deps_html = ""
     if measure.dependencies:
         dep_items = "".join(f"<li><code>{h(d)}</code></li>" for d in measure.dependencies)
-        deps_html = (
-            f'<details class="inline-details"><summary>Dependencies ({len(measure.dependencies)})</summary>'
-            f'<ul class="detail-list">{dep_items}</ul></details>'
-        )
+        deps_html = f"""
+    <details class="measure-details">
+      <summary class="details-toggle">Dependencies ({len(measure.dependencies)})</summary>
+      <ul class="detail-list">{dep_items}</ul>
+    </details>"""
 
     dax_escaped = h(measure.dax)
     return f"""
     <div class="measure {complexity_class}">
-      <h5><code>{h(measure.name)}</code> {hidden_badge} {folder_badge}</h5>
+      <div class="measure-header">
+        <span class="measure-name"><code>{h(measure.name)}</code></span>
+        {hidden_badge}
+        {badges}
+      </div>
       {desc_html}
       {purpose_html}
-      <p class="meta">{" &nbsp;|&nbsp; ".join(meta_parts)}</p>
+      {usage_html}
       {deps_html}
       <pre><code class="language-sql">{dax_escaped}</code></pre>
     </div>"""
+
+
+def _render_visual_usage(measure: Measure, report_parsed: bool) -> str:
+    """Render visual usage grouped by report page."""
+    if not report_parsed:
+        return "<p class='meta usage-meta'><em>Visual usage: report layer not analysed</em></p>"
+
+    if not measure.used_in_visuals:
+        return "<p class='meta usage-meta'><span class='badge orphan-badge'>⚠ not used in any visual</span></p>"
+
+    # Group by page
+    pages: dict[str, list[str]] = defaultdict(list)
+    for entry in measure.used_in_visuals:
+        if " / " in entry:
+            page, visual = entry.split(" / ", 1)
+        else:
+            page, visual = "Unknown", entry
+        pages[page].append(visual)
+
+    page_items = ""
+    total = sum(len(v) for v in pages.values())
+    for page, visuals in sorted(pages.items()):
+        visual_list = ", ".join(visuals)
+        page_items += f"<li><strong>{h(page)}</strong> — {h(visual_list)}</li>"
+
+    return f"""
+    <details class="measure-details">
+      <summary class="details-toggle usage-toggle">✓ Used in {total} visual(s) across {len(pages)} page(s)</summary>
+      <ul class="detail-list">{page_items}</ul>
+    </details>"""
 
 
 def _render_relationships(relationships: list[Relationship]) -> str:
@@ -588,34 +634,59 @@ _CSS = """
     /* ── Measure cards ── */
     .measure {
       border-left: 4px solid #dee2e6;
-      padding: 10px 14px;
-      margin-bottom: 14px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
       background: #fafafa;
-      border-radius: 0 4px 4px 0;
+      border-radius: 0 6px 6px 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .measure-simple       { border-left-color: #198754; }
     .measure-intermediate { border-left-color: #fd7e14; }
     .measure-advanced     { border-left-color: #dc3545; }
+    .measure-header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .measure-name { font-size: 15px; font-weight: 600; }
+    .measure-name code { font-size: 14px; }
+    p.measure-desc { margin: 4px 0 2px; font-size: 13px; color: #343a40; }
+    p.business-purpose {
+      margin: 4px 0 6px;
+      font-size: 13px;
+      color: #495057;
+      background: #f0f4ff;
+      border-left: 3px solid #6ea8fe;
+      padding: 4px 10px;
+      border-radius: 0 4px 4px 0;
+    }
+    p.usage-meta { margin: 4px 0; }
 
-    /* ── Inline collapsible details (dependencies, visual usage) ── */
-    details.inline-details {
-      display: inline;
+    /* ── Measure details (usage, dependencies) ── */
+    details.measure-details {
+      margin: 6px 0;
     }
-    details.inline-details > summary {
-      display: inline;
+    summary.details-toggle {
       cursor: pointer;
-      color: #0d6efd;
       font-size: 12px;
+      color: #6c757d;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
-    details.inline-details > summary::-webkit-details-marker { display: none; }
+    summary.details-toggle::-webkit-details-marker { display: none; }
+    summary.usage-toggle { color: #198754; font-weight: 500; }
     ul.detail-list {
-      margin: 4px 0 4px 16px;
-      padding: 6px 10px;
+      margin: 6px 0 4px 16px;
+      padding: 8px 12px;
       background: #f1f3f5;
       border-radius: 4px;
       font-size: 12px;
     }
-    ul.detail-list li { margin: 2px 0; }
+    ul.detail-list li { margin: 3px 0; }
 
     /* ── Calculated column expressions ── */
     details.calc-exprs > summary {

@@ -96,10 +96,15 @@ def _build(model: SemanticModel, findings: list[QualityFinding]) -> Document:
     _add_code_block(doc, build_mermaid(model))
     doc.add_paragraph()
 
-    # ── Tables ────────────────────────────────────────────────────────────────
+    # ── Tables (columns only) ─────────────────────────────────────────────────
     doc.add_heading("Tables", level=1)
     for table in model.tables:
-        _render_table(doc, table, model.report_parsed)
+        _render_table(doc, table)
+
+    # ── Measures (dedicated section) ──────────────────────────────────────────
+    all_measures = [m for t in model.tables for m in t.measures]
+    if all_measures:
+        _render_measures_section(doc, model)
 
     # ── Relationships ─────────────────────────────────────────────────────────
     _render_relationships(doc, model.relationships)
@@ -137,7 +142,8 @@ def _render_data_sources(doc: Document, source_tables: list[Table]) -> None:
     doc.add_paragraph()
 
 
-def _render_table(doc: Document, table: Table, report_parsed: bool) -> None:
+def _render_table(doc: Document, table: Table) -> None:
+    """Render a table section — columns only (measures are in the dedicated Measures section)."""
     hidden_tag = " (hidden)" if table.is_hidden else ""
     doc.add_heading(f"{table.name}{hidden_tag}", level=2)
 
@@ -150,6 +156,9 @@ def _render_table(doc: Document, table: Table, report_parsed: bool) -> None:
     meta.add_run(table.inferred_role + "  ")
     meta.add_run("Type: ").bold = True
     meta.add_run("Calculated table" if table.is_calculated else "Imported / DirectQuery")
+    if table.measures:
+        meta.add_run(f"  Measures: ").bold = True
+        meta.add_run(str(len(table.measures)))
 
     if table.source_query:
         pq = table.source_query
@@ -173,7 +182,7 @@ def _render_table(doc: Document, table: Table, report_parsed: bool) -> None:
         if has_source:
             headers.append("Source Column")
 
-        doc.add_heading("Columns", level=3)
+        doc.add_heading(f"Columns ({len(visible_cols)})", level=3)
         col_tbl = doc.add_table(rows=1 + len(visible_cols), cols=len(headers))
         col_tbl.style = "Table Grid"
         for i, hdr in enumerate(headers):
@@ -198,21 +207,6 @@ def _render_table(doc: Document, table: Table, report_parsed: bool) -> None:
                 p.add_run(col.name + ":").bold = True
                 _add_code_block(doc, col.dax_expression)
 
-    # ── Measures — grouped by display folder ──────────────────────────────────
-    if table.measures:
-        doc.add_heading("Measures", level=3)
-        folders: dict[str, list[Measure]] = defaultdict(list)
-        for m in table.measures:
-            folders[m.display_folder or ""].append(m)
-        folder_order = [""] + sorted(k for k in folders if k)
-        for folder_key in folder_order:
-            if folder_key not in folders:
-                continue
-            if folder_key:
-                doc.add_heading(f"📁 {folder_key}", level=4)
-            for measure in folders[folder_key]:
-                _render_measure(doc, measure, report_parsed)
-
     # ── Power Query Steps ─────────────────────────────────────────────────────
     if table.source_query and table.source_query.step_descriptions:
         pq = table.source_query
@@ -234,18 +228,45 @@ def _render_table(doc: Document, table: Table, report_parsed: bool) -> None:
             doc.add_paragraph(f"{hr.name}: {' → '.join(hr.levels)}", style="List Bullet")
 
 
+def _render_measures_section(doc: Document, model: SemanticModel) -> None:
+    """Dedicated top-level Measures section — all measures across all tables."""
+    doc.add_heading("Measures", level=1)
+
+    for table in model.tables:
+        if not table.measures:
+            continue
+        doc.add_heading(table.name, level=2)
+
+        # Group by display folder
+        folders: dict[str, list[Measure]] = defaultdict(list)
+        for m in table.measures:
+            folders[m.display_folder or ""].append(m)
+        folder_order = [""] + sorted(k for k in folders if k)
+
+        for folder_key in folder_order:
+            if folder_key not in folders:
+                continue
+            if folder_key:
+                doc.add_heading(f"📁 {folder_key}", level=3)
+            for measure in folders[folder_key]:
+                _render_measure(doc, measure, model.report_parsed)
+
+
 def _render_measure(doc: Document, measure: Measure, report_parsed: bool) -> None:
     hidden_tag = " (hidden)" if measure.is_hidden else ""
-    p = doc.add_heading(f"{measure.name}{hidden_tag}", level=4)
+    doc.add_heading(f"{measure.name}{hidden_tag}", level=4)
 
+    # Description
     if measure.description:
         doc.add_paragraph(measure.description)
 
+    # Business purpose
     if measure.business_purpose:
-        p2 = doc.add_paragraph()
-        p2.add_run("Business purpose: ").bold = True
-        p2.add_run(measure.business_purpose).italic = True
+        p = doc.add_paragraph()
+        p.add_run("Business purpose: ").bold = True
+        p.add_run(measure.business_purpose).italic = True
 
+    # Metadata line
     meta = doc.add_paragraph()
     if measure.format_string:
         meta.add_run("Format: ").bold = True
@@ -253,20 +274,32 @@ def _render_measure(doc: Document, measure: Measure, report_parsed: bool) -> Non
     meta.add_run("Complexity: ").bold = True
     meta.add_run(measure.complexity_tier)
 
-    # Visual usage
+    # Visual usage — grouped by page
     if report_parsed:
         if measure.used_in_visuals:
+            pages: dict[str, list[str]] = defaultdict(list)
+            for entry in measure.used_in_visuals:
+                if " / " in entry:
+                    page, visual = entry.split(" / ", 1)
+                else:
+                    page, visual = "Unknown", entry
+                pages[page].append(visual)
+            total = sum(len(v) for v in pages.values())
             p_vis = doc.add_paragraph()
-            p_vis.add_run("Used in: ").bold = True
-            p_vis.add_run(", ".join(measure.used_in_visuals))
+            p_vis.add_run(f"Used in {total} visual(s): ").bold = True
+            for page, visuals in sorted(pages.items()):
+                doc.add_paragraph(
+                    f"{page}: {', '.join(visuals)}",
+                    style="List Bullet",
+                )
         else:
             p_vis = doc.add_paragraph()
             p_vis.add_run("Visual usage: ").bold = True
-            p_vis.add_run("Not used in any visual")
+            p_vis.add_run("Not used in any visual — possible orphaned measure")
     else:
         p_vis = doc.add_paragraph()
         p_vis.add_run("Visual usage: ").bold = True
-        p_vis.add_run("Report not analysed")
+        p_vis.add_run("Report layer not analysed")
 
     # Dependencies
     if measure.dependencies:
@@ -274,6 +307,8 @@ def _render_measure(doc: Document, measure: Measure, report_parsed: bool) -> Non
         p_dep.add_run("Dependencies: ").bold = True
         p_dep.add_run(", ".join(measure.dependencies))
 
+    # DAX
+    doc.add_paragraph().add_run("DAX Expression:").bold = True
     _add_code_block(doc, measure.dax)
 
 

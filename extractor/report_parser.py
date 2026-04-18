@@ -74,12 +74,22 @@ def parse(report_layout_bytes: bytes | None, model: SemanticModel) -> SemanticMo
 
 
 def _get_visual_name(config: dict, container: dict) -> str:
-    title = (
-        config.get("name")
-        or config.get("singleVisual", {}).get("visualType", "")
-        or container.get("config", "")[:30]
+    # Prefer the user-defined title from vcObjects (what appears in the report)
+    try:
+        val = (
+            config["singleVisual"]["vcObjects"]["title"][0]
+            ["properties"]["text"]["expr"]["Literal"]["Value"]
+        )
+        val = val.strip("'\"")
+        if val:
+            return val
+    except (KeyError, IndexError, TypeError):
+        pass
+    # Fall back to visual type label, then the internal GUID name
+    return (
+        config.get("singleVisual", {}).get("visualType")
+        or config.get("name", "visual")
     )
-    return str(title) if title else "visual"
 
 
 def _walk_for_measures(
